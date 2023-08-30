@@ -1,0 +1,201 @@
+from torch.nn.modules.module import Module
+import numpy as np
+import torch
+import torch.nn.functional as F
+import time
+import math
+
+class RoiPooling(Module):
+    def __init__(self, mode='tf', pool_size=(1, 1), cls_layer=None):
+        """
+        tf: (height, width, channels)
+        th: (channels, height, width)
+        :param mode:
+        :param pool_size:
+        """
+        super(RoiPooling, self).__init__()
+
+        self.mode = mode
+        self.pool_size = pool_size
+        self.cls_layer = cls_layer
+
+    def pool_region_ori(self, region):
+
+        """
+        the pooling of a region
+        :param region: the region of interest fetched from feature map
+        :return: roipool with size of (1, height, width, channel) if mode is tf otherwise (1, channels, height, width)
+        """
+
+        pool_height, pool_width = self.pool_size
+        if self.mode == 'tf':
+            region_height, region_width, region_channels = region.shape
+            pool = np.zeros((pool_height, pool_width, region_channels))
+        elif self.mode== 'th':
+            region_channels, region_height, region_width = region.shape
+            pool = torch.from_numpy(np.zeros((region_channels, pool_height, pool_width)))
+
+        h_step = region_height / pool_height
+        w_step = region_width / pool_width
+        for i in range(pool_height):
+            for j in range(pool_width):
+
+                xmin = j * w_step
+                xmax = (j+1) * w_step
+                ymin = i * h_step
+                ymax = (i+1) * h_step
+
+                xmin = int(xmin)
+                xmax = int(xmax)
+                ymin = int(ymin)
+                ymax = int(ymax)
+
+                # if xmin==xmax or ymin==ymax:
+                #     continue
+                if self.mode=='tf':
+                    # pool[i, j, :] = np.max(region[ymin:ymax, xmin:xmax, :], axis=(0,1))
+                    pool[i,j,:] = F.adaptive_avg_pool2d(region[ymin:ymax, xmin:xmax, :], (1,1))
+                    # pool[i, j, :] = F.adaptive_max_pool2d(region[ymin:ymax, xmin:xmax, :], (1, 1))
+                elif self.mode=='th':
+
+                    region_var = region[:, ymin:ymax, xmin:xmax]
+                    # region_cam = self.cls_layer(region_var)
+                    # pool[:, i, j] = np.max(region_var.cpu().detach().numpy(), axis=(1,2))
+                    roi_pooled = F.adaptive_avg_pool2d(region_var, (1, 1))
+
+                    # # roi_pooled = F.adaptive_max_pool2d(region_var, (1, 1))
+                    # # roi_pooled_a = roi_pooled[:,0,0]
+                    # # pool_a  = pool[:, i,j]
+                    #
+                    #
+                    # pool[:, i, j] = roi_pooled[:, 0, 0]
+
+
+        # pool = torch.from_numpy(pool)
+        return roi_pooled
+
+    def pool_region(self, region):
+
+        """
+        the pooling of a region
+        :param region: the region of interest fetched from feature map
+        :return: roipool with size of (1, height, width, channel) if mode is tf otherwise (1, channels, height, width)
+        """
+
+        pool_height, pool_width = self.pool_size
+        if self.mode == 'tf':
+            region_height, region_width, region_channels = region.shape
+            pool = np.zeros((pool_height, pool_width, region_channels))
+        elif self.mode== 'th':
+            region_channels, region_height, region_width = region.shape
+            pool = torch.from_numpy(np.zeros((region_channels, pool_height, pool_width)))
+
+        # h_step = region_height / pool_height
+        # w_step = region_width / pool_width
+        # for i in range(pool_height):
+        #     for j in range(pool_width):
+        #
+        #         xmin = j * w_step
+        #         xmax = (j+1) * w_step
+        #         ymin = i * h_step
+        #         ymax = (i+1) * h_step
+        #
+        #         xmin = int(xmin)
+        #         xmax = int(xmax)
+        #         ymin = int(ymin)
+        #         ymax = int(ymax)
+        #
+        #         if xmin==xmax or ymin==ymax:
+        #             continue
+        if self.mode=='th':
+            # pool[:, i, j] = np.max(region_var.cpu().detach().numpy(), axis=(1,2))
+            roi_pooled = F.adaptive_avg_pool2d(region, (1 ,1))
+
+                    # # roi_pooled = F.adaptive_max_pool2d(region_var, (1, 1))
+                    # # roi_pooled_a = roi_pooled[:,0,0]
+                    # # pool_a  = pool[:, i,j]
+                    #
+                    #
+                    # pool[:, i, j] = roi_pooled[:, 0, 0]
+
+
+        # pool = torch.from_numpy(pool)
+        return roi_pooled
+
+    def get_region(self, feature_map, roi_dimensions):
+        """
+        fetching the roi from feature map by the dimension of the roi
+        :param feature_map: the feature map with size of (1, height, width, channels)
+        :param roi_dimensions: a region of interest dimensions
+        :return:
+        """
+        xmin, ymin, xmax, ymax = roi_dimensions
+        xmin = int(xmin)
+        ymin = int(ymin)
+        xmax = int(xmax)
+        ymax = int(ymax)
+        if self.mode=='tf':
+            r = np.squeeze(feature_map)[ymin:ymax, xmin:xmax, :]
+        elif self.mode=='th':
+            r = feature_map[:, ymin:ymax, xmin:xmax]
+        return r
+
+    def get_mask_region(self, mask, roi_dimensions):
+        xmin, ymin, xmax, ymax = roi_dimensions
+        xmin = int(xmin)
+        ymin = int(ymin)
+        xmax = int(xmax)
+        ymax = int(ymax)
+        return mask[ymin:ymax, xmin:xmax]
+
+    def forward(self, feature_map, roi_batch, label_list, patch_num, norm_cam_wbg):
+        """
+        getting pools from the roi batch
+        :param feature_map:
+        :param roi_batch: region of interest batch (usually is 256 for faster rcnn)
+        :return:
+        """
+        # start=time.time()
+        pool = []
+        # pool = torch.Tensor()
+        i = 0
+        roi_num = 0
+        cam_predict = np.argmax(norm_cam_wbg, 0)
+        W, H = feature_map.size(1), feature_map.size(2)
+
+        patch_num_per_edge = int(math.sqrt(patch_num))
+
+        pool=[]
+        fg_score=[]
+        for i in range(patch_num):
+
+            for region_dim, region_label in zip(roi_batch, label_list):
+                map = feature_map
+                xmin,ymin,xmax,ymax=region_dim
+
+                region_dim_i=[round(xmin+ (i % patch_num_per_edge) * (xmax - xmin) / patch_num_per_edge),
+                              round(ymin + int(i / patch_num_per_edge) * (ymax - ymin) / patch_num_per_edge),
+                              round(xmin+ (i % patch_num_per_edge) * (xmax - xmin) / patch_num_per_edge+(xmax - xmin) / patch_num_per_edge),
+                              round(ymin + int(i / patch_num_per_edge) * (ymax - ymin) / patch_num_per_edge+(ymax - ymin) / patch_num_per_edge)
+                              ]
+                # print(region_dim_i)
+
+                region = self.get_region(map, region_dim_i)
+                p = self.pool_region_ori(region).unsqueeze(0)
+                pool.append(p)
+
+
+                # 计算前景占比
+                label_i_mask = np.zeros((W,H))                # 计算mask
+                label_i_mask[cam_predict == region_label] = 1
+                
+                region_mask = self.get_mask_region(label_i_mask, region_dim_i)
+                target_percentage = np.sum(region_mask == 1) / np.size(region_mask)
+                fg_score.append(target_percentage)
+
+
+        pool=torch.cat(pool,dim=0)
+
+        # pool = pool.cuda()
+
+        return pool, fg_score
