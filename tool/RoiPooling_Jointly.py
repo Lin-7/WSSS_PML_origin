@@ -6,7 +6,7 @@ import time
 import math
 
 class RoiPooling(Module):
-    def __init__(self, mode='tf', pool_size=(1, 1)):
+    def __init__(self, mode='tf', pool_size=(1, 1), cls_layer=None):
         """
         tf: (height, width, channels)
         th: (channels, height, width)
@@ -17,6 +17,7 @@ class RoiPooling(Module):
 
         self.mode = mode
         self.pool_size = pool_size
+        self.cls_layer = cls_layer
 
     def pool_region_ori(self, region):
 
@@ -58,6 +59,7 @@ class RoiPooling(Module):
                 elif self.mode=='th':
 
                     region_var = region[:, ymin:ymax, xmin:xmax]
+                    # region_cam = self.cls_layer(region_var)
                     # pool[:, i, j] = np.max(region_var.cpu().detach().numpy(), axis=(1,2))
                     roi_pooled = F.adaptive_avg_pool2d(region_var, (1, 1))
 
@@ -120,7 +122,6 @@ class RoiPooling(Module):
         # pool = torch.from_numpy(pool)
         return roi_pooled
 
-
     def get_region(self, feature_map, roi_dimensions):
         """
         fetching the roi from feature map by the dimension of the roi
@@ -138,29 +139,6 @@ class RoiPooling(Module):
         elif self.mode=='th':
             r = feature_map[:, ymin:ymax, xmin:xmax]
         return r
-
-    # def get_pooled_rois(self,feature_map, roi_batch):
-    #     """
-    #     getting pools from the roi batch
-    #     :param feature_map:
-    #     :param roi_batch: region of interest batch (usually is 256 for faster rcnn)
-    #     :return:
-    #     """
-    #     pool = []
-    #     i = 0
-    #     for region_dim in roi_batch:
-    #         map = feature_map[i]
-    #         # print(map.shape)
-    #         # print(region_dim)
-    #         region = self.get_region(map, region_dim)
-    #         p = self.pool(region)
-    #         pool.append(p)
-    #         i += 1
-    #     pool = np.array(pool)
-    #     pool = torch.from_numpy(pool)
-    #     pool = pool.cuda()
-    #     # print(pool.shape)
-    #     return pool
 
     def forward(self,feature_map, roi_batch, patch_num):
         """

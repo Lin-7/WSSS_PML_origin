@@ -22,8 +22,9 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 if __name__ == '__main__':
     torch.set_num_threads(16)
     phase = "val"
+    bg_thresh=[0.21,0.22,0.23,0.24,0.243,0.245,0.248,0.25]
     # bg_thresh=[0.20,0.205,0.21,0.22,0.23,0.24,0.243,0.245,0.248,0.25,0.253,0.255,0.258,0.26,0.263,0.265,0.268,0.27,0.273,0.275,0.278,0.28]
-    bg_thresh=[0.23]
+    # bg_thresh=[0.23]
 
     parser = argparse.ArgumentParser()
     # parser.add_argument("--weights", default="/usr/volume/WSSS/weights_released/res38_cls.pth", type=str)
@@ -39,9 +40,9 @@ if __name__ == '__main__':
     parser.add_argument("--voc12_root", default='/usr/volume/WSSS/VOCdevkit/VOC2012', type=str)
 
     parser.add_argument("--out_cam", default="./out_cam_val", type=str)
-    # parser.add_argument("--out_crf", default="./out_crf", type=str)
+    parser.add_argument("--out_crf", default="./out_crf", type=str)
     # parser.add_argument("--out_cam", default=None, type=str)
-    parser.add_argument("--out_crf", default=None, type=str)
+    # parser.add_argument("--out_crf", default=None, type=str)
 
     parser.add_argument("--out_cam_pred", default="./out_cam_pred_val", type=str)
     parser.add_argument("--log_infer_cls", default=f"/usr/volume/WSSS/WSSS_PML_origin/log_CAM_{phase}.txt", type=str)
@@ -72,7 +73,6 @@ if __name__ == '__main__':
             folder = args.out_crf + ('_%.1f' % t)
             if not os.path.exists(folder):
                 os.makedirs(folder)
-
     # =====
 
 
@@ -163,7 +163,7 @@ if __name__ == '__main__':
                 # if not os.path.exists(folder):
                 #     os.makedirs(folder)
                 np.save(os.path.join(folder, img_name + '.npy'), crf)
-        # import pdb; pdb.set_trace()
+
         if iter%5==0:
             print(iter)
             

@@ -45,7 +45,7 @@ class Net(network.resnet38d.Net):
         self.from_scratch_layers.append(self.downsample)
 
 
-        self.roi_pooling = RoiPooling(mode="th")
+        self.roi_pooling = RoiPooling(mode="th", cls_layer=self.fc8_)
         self.ranking_loss = nn.MarginRankingLoss(margin=28.0)
         self.ranking_loss_same_img = nn.MarginRankingLoss(margin=28.0)
 
